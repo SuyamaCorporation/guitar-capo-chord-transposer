@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ギター カポ コード 移調ツール</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-amber-50 min-h-screen p-4">
+<div class="max-w-3xl mx-auto">
+  <h1 class="text-2xl font-bold text-center text-amber-800 mb-1">ギター カポ コード 移調ツール</h1>
+  <p class="text-center text-gray-500 text-sm mb-6">カポの位置とコードフォームからサウンドコード（実音）を計算</p>
+
+  <!-- Tab navigation -->
+  <div class="flex gap-2 mb-4">
+    <button id="tab1" class="flex-1 py-2 rounded-t-lg font-medium text-sm bg-amber-600 text-white" aria-label="順引きタブ">順引き（カポ+フォーム → 実音）</button>
+    <button id="tab2" class="flex-1 py-2 rounded-t-lg font-medium text-sm bg-gray-200 text-gray-700" aria-label="逆引きタブ">逆引き（実音 → カポ+フォーム）</button>
+  </div>
+
+  <!-- Forward mode -->
+  <div id="forwardPanel" class="bg-white rounded-b-xl rounded-tr-xl shadow p-5">
+    <h2 class="font-semibold text-amber-700 mb-4">順引きモード</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">カポ位置 (フレット)</label>
+        <select id="capoFret" class="w-full border rounded px-3 py-2 text-sm">
+          <option value="0">0（カポなし）</option>
+          <option value="1">1フレット</option>
+          <option value="2">2フレット</option>
+          <option value="3">3フレット</option>
+          <option value="4">4フレット</option>
+          <option value="5">5フレット</option>
+          <option value="6">6フレット</option>
+          <option value="7">7フレット</option>
+          <option value="8">8フレット</option>
+          <option value="9">9フレット</option>
+          <option value="10">10フレット</option>
+          <option value="11">11フレット</option>
+          <option value="12">12フレット</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">コードルート</label>
+        <select id="formRoot" class="w-full border rounded px-3 py-2 text-sm"></select>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">コード種類</label>
+        <select id="formQuality" class="w-full border rounded px-3 py-2 text-sm">
+          <option value="">Major</option>
+          <option value="m">minor</option>
+          <option value="7">7</option>
+          <option value="m7">m7</option>
+          <option value="maj7">maj7</option>
+        </select>
+      </div>
+    </div>
+    <button id="calcForward" class="bg-amber-600 text-white px-5 py-2 rounded font-medium hover:bg-amber-700" aria-label="サウンドコードを計算">サウンドコードを計算</button>
+    <div id="forwardResult" class="mt-4 hidden bg-amber-50 rounded p-4 text-center">
+      <p class="text-sm text-gray-500">フォームコード</p>
+      <p class="text-2xl font-bold text-amber-700" id="formChordDisplay"></p>
+      <p class="text-gray-500 text-lg mt-1">→ カポ <span id="capoDisplay"></span> フレット →</p>
+      <p class="text-sm text-gray-500 mt-1">サウンドコード（実音）</p>
+      <p class="text-3xl font-bold text-green-700" id="soundChordDisplay"></p>
+    </div>
+  </div>
+
+  <!-- Reverse mode -->
+  <div id="reversePanel" class="bg-white rounded-b-xl rounded-tr-xl shadow p-5 hidden">
+    <h2 class="font-semibold text-blue-700 mb-4">逆引きモード</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">サウンドコード（実音）ルート</label>
+        <select id="soundRoot" class="w-full border rounded px-3 py-2 text-sm"></select>
+      </div>
+      <div>
+        <label class="block text-sm text-gray-600 mb-1">コード種類</label>
+        <select id="soundQuality" class="w-full border rounded px-3 py-2 text-sm">
+          <option value="">Major</option>
+          <option value="m">minor</option>
+          <option value="7">7</option>
+          <option value="m7">m7</option>
+          <option value="maj7">maj7</option>
+        </select>
+      </div>
+    </div>
+    <button id="calcReverse" class="bg-blue-600 text-white px-5 py-2 rounded font-medium hover:bg-blue-700" aria-label="カポとフォームを検索">カポとフォームを検索</button>
+    <div id="reverseResult" class="mt-4 hidden">
+      <p class="font-medium text-gray-700 mb-2" id="reverseTitle"></p>
+      <div id="reverseList" class="space-y-2"></div>
+    </div>
+  </div>
+
+  <!-- Chord reference -->
+  <div class="bg-white rounded-xl shadow p-4 mt-6">
+    <h2 class="font-semibold text-gray-700 mb-2">移調一覧表</h2>
+    <div class="overflow-x-auto">
+      <table class="text-xs border-collapse w-full" id="transposeTable"></table>
+    </div>
+  </div>
+</div>
+
+<script>
+const NOTES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const DISPLAY_NOTES = ['C','C#/Db','D','D#/Eb','E','F','F#/Gb','G','G#/Ab','A','A#/Bb','B'];
+// "Open" chord forms that are easy to play
+const EASY_FORMS = [0, 2, 4, 5, 7, 9]; // C, D, E, F, G, A roots (indices)
+
+function transpose(rootIdx, semitones) {
+  return ((rootIdx + semitones) % 12 + 12) % 12;
+}
+
+function noteName(idx) {
+  return NOTES[idx];
+}
+
+// Populate root selects
+function populateRoots(selectId) {
+  const sel = document.getElementById(selectId);
+  NOTES.forEach((n, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = DISPLAY_NOTES[i];
+    sel.appendChild(opt);
+  });
+}
+populateRoots('formRoot');
+populateRoots('soundRoot');
+
+// Tab switching
+document.getElementById('tab1').addEventListener('click', () => {
+  document.getElementById('forwardPanel').classList.remove('hidden');
+  document.getElementById('reversePanel').classList.add('hidden');
+  document.getElementById('tab1').className = 'flex-1 py-2 rounded-t-lg font-medium text-sm bg-amber-600 text-white';
+  document.getElementById('tab2').className = 'flex-1 py-2 rounded-t-lg font-medium text-sm bg-gray-200 text-gray-700';
+});
+document.getElementById('tab2').addEventListener('click', () => {
+  document.getElementById('forwardPanel').classList.add('hidden');
+  document.getElementById('reversePanel').classList.remove('hidden');
+  document.getElementById('tab1').className = 'flex-1 py-2 rounded-t-lg font-medium text-sm bg-gray-200 text-gray-700';
+  document.getElementById('tab2').className = 'flex-1 py-2 rounded-t-lg font-medium text-sm bg-blue-600 text-white';
+});
+
+document.getElementById('calcForward').addEventListener('click', () => {
+  const capo = parseInt(document.getElementById('capoFret').value);
+  const formRootIdx = parseInt(document.getElementById('formRoot').value);
+  const quality = document.getElementById('formQuality').value;
+  const soundRootIdx = transpose(formRootIdx, capo);
+  document.getElementById('forwardResult').classList.remove('hidden');
+  document.getElementById('formChordDisplay').textContent = noteName(formRootIdx) + quality;
+  document.getElementById('capoDisplay').textContent = capo;
+  document.getElementById('soundChordDisplay').textContent = noteName(soundRootIdx) + quality;
+});
+
+document.getElementById('calcReverse').addEventListener('click', () => {
+  const soundRootIdx = parseInt(document.getElementById('soundRoot').value);
+  const quality = document.getElementById('soundQuality').value;
+  const resultDiv = document.getElementById('reverseResult');
+  const listDiv = document.getElementById('reverseList');
+  const title = document.getElementById('reverseTitle');
+  resultDiv.classList.remove('hidden');
+  listDiv.innerHTML = '';
+  title.textContent = `${noteName(soundRootIdx)}${quality} を鳴らすカポ+フォーム一覧：`;
+
+  const rows = [];
+  for (let capo = 0; capo <= 12; capo++) {
+    // formRoot = soundRoot - capo
+    const formRootIdx = ((soundRootIdx - capo) % 12 + 12) % 12;
+    const easy = EASY_FORMS.includes(formRootIdx);
+    rows.push({ capo, formRootIdx, quality, easy });
+  }
+  rows.forEach(r => {
+    const div = document.createElement('div');
+    div.className = `flex items-center gap-3 rounded px-3 py-2 text-sm ${r.easy ? 'bg-green-50 border border-green-200' : 'bg-gray-50'}`;
+    div.innerHTML = `
+      <span class="font-medium w-20">カポ ${r.capo}フレット</span>
+      <span class="font-bold text-blue-700 w-24">${noteName(r.formRootIdx)}${r.quality}</span>
+      <span class="text-xs text-gray-400">${r.easy ? '⭐ 開放弦コード' : ''}</span>
+    `;
+    listDiv.appendChild(div);
+  });
+});
+
+// Transpose table
+function buildTransposeTable() {
+  const table = document.getElementById('transposeTable');
+  const header = document.createElement('tr');
+  header.className = 'bg-gray-100';
+  const th0 = document.createElement('th');
+  th0.textContent = 'カポ';
+  th0.className = 'border border-gray-200 px-2 py-1';
+  header.appendChild(th0);
+  NOTES.forEach(n => {
+    const th = document.createElement('th');
+    th.textContent = n;
+    th.className = 'border border-gray-200 px-2 py-1';
+    header.appendChild(th);
+  });
+  table.appendChild(header);
+
+  for (let capo = 0; capo <= 12; capo++) {
+    const tr = document.createElement('tr');
+    tr.className = capo % 2 === 0 ? 'bg-white' : 'bg-amber-50';
+    const td0 = document.createElement('td');
+    td0.textContent = capo;
+    td0.className = 'border border-gray-200 px-2 py-1 font-medium text-center bg-amber-100';
+    tr.appendChild(td0);
+    NOTES.forEach((n, i) => {
+      const soundIdx = transpose(i, capo);
+      const td = document.createElement('td');
+      td.textContent = NOTES[soundIdx];
+      td.className = 'border border-gray-200 px-2 py-1 text-center';
+      tr.appendChild(td);
+    });
+    table.appendChild(tr);
+  }
+}
+buildTransposeTable();
+</script>
+</body>
+</html>
